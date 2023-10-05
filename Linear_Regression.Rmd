@@ -1,0 +1,421 @@
+---
+title: "Linear Regression Report"
+output:
+  html_document:
+    df_print: paged
+    keep_md: yes
+  pdf_document: default
+     
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.width = 6, fig.asp = 0.618)
+#libraries load
+library(liver)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(moments)
+library(readxl)
+library(plot3D)
+library(car)
+library(corrplot)
+library(lmtest)
+```
+
+
+## Data
+### Independent Variables:
+* Abs280
+* Abs340
+* Abs420
+* Abs520
+* Abs620
+* Antocianins
+* Catechins
+* Polyphenol
+* Color
+
+### Dependent Variables:
+* TT-IPT
+* TT-MCP
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+data_taninos<- read_xlsx("/Users/leonardo/Documents/Vinos/dataset_taninos2023_2.xlsx", sheet = 'dataset')
+
+```
+
+## Normal Distribution and Outliers
+\
+```{r message=FALSE, warning=FALSE, include=FALSE}
+#Analysis if distribution of each variable
+
+#function to print the normality of the data. Import 'moments' library for the analysis.
+swnormality_test <- function(ind_var) { 
+  stest <- shapiro.test(ind_var)
+  p_val <- stest[2]
+  sprintf ("The p-value is %s:", p_val)
+}
+swnormality_test(data_taninos$Abs280)
+swnormality_test(data_taninos$Abs340)
+swnormality_test(data_taninos$Abs420)
+swnormality_test(data_taninos$Abs520)
+swnormality_test(data_taninos$Abs620)
+swnormality_test(data_taninos$Antocianins)
+swnormality_test(data_taninos$Catechins)
+swnormality_test(data_taninos$Polyphenols)
+swnormality_test(data_taninos$Color)
+swnormality_test(data_taninos$TPI)
+swnormality_test(data_taninos$TT_TPI)
+swnormality_test(data_taninos$TT_MCP)
+
+```
+
+
+Graphical overview of normal data and outliers, complemented with a Shapiro-Wilkman normality test
+
+```{r fig.show='hold', message=FALSE, warning=FALSE, include=FALSE, out.width="32%"}
+# function that generates a histogram, boxplot and quantile plot to overview the distribution of the variables
+norm_explore <- function(dat_frm, idp_vrbl) {
+  
+  histgrm <-   ggplot(dat_frm) +
+    geom_histogram(aes_string(x = idp_vrbl), fill = "royalblue", bins = 10)+
+    labs(title = idp_vrbl) +
+    theme(aspect.ratio = 1)
+  
+  bx_plt <- ggplot(dat_frm, aes_string(idp_vrbl, idp_vrbl)) +
+    geom_boxplot()+
+    theme(aspect.ratio = 1)
+  
+  qq <- ggplot(dat_frm, aes_string(sample = idp_vrbl))+
+    stat_qq() + stat_qq_line()+
+    labs(title = idp_vrbl)+
+    theme(aspect.ratio = 1)
+ 
+  print (histgrm)
+  print (bx_plt)
+  print (qq)
+}
+
+norm_explore(data_taninos, "Abs280")
+norm_explore(data_taninos, "Abs340")
+norm_explore(data_taninos, "Abs420")
+norm_explore(data_taninos, "Abs520")
+norm_explore(data_taninos, "Abs620")
+norm_explore(data_taninos, "Antocianins")
+norm_explore(data_taninos, "Catechins")
+norm_explore(data_taninos, "Polyphenols")
+norm_explore(data_taninos, "Color")
+norm_explore(data_taninos, "TPI")
+norm_explore(data_taninos, "TT_TPI")
+norm_explore(data_taninos, "TT_MCP")
+
+
+
+```
+\
+According to the graphs and to the SW test, all the variables present a normal distribution. *Outliers based on the Polyphenol variable have been removed. 
+
+The p-value for Abs340 is 0.0176, this data does not have a normal distribution. Thus, it is discarded from the analysis.\
+\
+
+## Correlation Assumption 
+Correlation test between independent variables and TPI. 
+
+```{r warning=FALSE, include=FALSE}
+coefficient <- cor.test(data_taninos$Abs280, data_taninos$TT_TPI)
+coefficient$estimate
+
+coefficient <- cor.test(data_taninos$Abs340, data_taninos$TT_TPI)
+coefficient$estimate
+
+coefficient <- cor.test(data_taninos$Abs420, data_taninos$TT_TPI)
+coefficient$estimate
+
+coefficient <- cor.test(data_taninos$Abs520, data_taninos$TT_TPI)
+coefficient$estimate
+
+coefficient <- cor.test(data_taninos$Abs620, data_taninos$TT_TPI)
+coefficient$estimate
+
+coefficient <- cor.test(data_taninos$Antocianins, data_taninos$TT_TPI)
+coefficient$estimate
+
+coefficient <- cor.test(data_taninos$Catechins, data_taninos$TT_TPI)
+coefficient$estimate
+
+coefficient <- cor.test(data_taninos$Polyphenols, data_taninos$TT_TPI)
+coefficient$estimate
+
+coefficient <- cor.test(data_taninos$Color, data_taninos$TT_TPI)
+coefficient$estimate
+
+
+```
+\
+```{r Correlation Graph, warning=FALSE, dev = 'tiff', dpi= 900}
+#Gráfica de correlacion entre todas las variables significativas
+
+library(corrplot)
+
+My_colors_p <- colorRampPalette(c("#74714E", "#A9C870" ,"#258EA6"))(20)
+
+corrx <- cor(data_taninos[, c("TT_TPI","TT_MCP","Abs280", "Abs340", "Abs420", "Abs520", "Abs620","Catechins", "Antocianins", "Polyphenols", "Color")], method = "pearson")
+
+colnames(corrx) <- c("TT-TPI","TT-MCP","Abs280", "Abs340", "Abs420", "Abs520", "Abs620","Catechins", "Anthocyanins", "Polyphenols", "Color")
+rownames(corrx) <- c("TT-TPI","TT-MCP","Abs280", "Abs340", "Abs420", "Abs520", "Abs620","Catechins", "Anthocyanins", "Polyphenols", "Color")
+plot_corr <- corrplot.mixed(corrx,
+         color = "transparent",
+         is.corr = FALSE,
+         col.lim = c(-0.10,1.0),
+         tl.pos = "lt",
+         tl.col = "black",
+         tl.cex = 0.7,
+         number.cex = 0.6,
+         lower.col = My_colors_p,
+         upper.col = My_colors_p)
+
+# Colors 
+# #361134-purple; #726DA8 - lavender; ##861388- purple; pink #FFC6D9; purple #7E2E84
+               
+               
+```
+
+\
+\
+There is a high linear correlation for variables (r > 0.9)
++ Polyphenols -> 0.9670
+\
+There is a high linear correlation for variables (0.9 >r > 0.7):\
++ Abs280 -> 0.8574\
++ Color -> 0.8105\
++ Abs620 -> 0.7577\
++ Abs420 -> 0.7657\
++ Abs340 -> 0.7657\
+
+There is moderate linear correlation for variables (0.7 > r > 0.5):\
++ Abs520 -> 0.5696\
++ Antocianins -> 0.5674\
+
+There is a a low linear correlation for variable ( r < 0.3):\
++ Catechins -> 0.0636
+
+---
+
+## Linear Regression
+\
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+data_znormalized <- zscore(data_taninos)
+
+Data_Nrmlizd <- data_znormalized[, c("Polyphenols", "Abs280", "Color", "Abs420", "Abs620", "TPI", "TT_TPI", "TT_MCP")]
+
+Normalized_data <- Data_Nrmlizd %>%
+  bind_cols(data_taninos$`Sample code`)%>%
+  rename(Sample_code = ...9)
+```
+
+Linear Regression with each variable:\
+```{r message=FALSE, warning=FALSE, include=FALSE}
+#function to generate linear regression graphs, residual vs fitted graph, q-q plot, outliers, and print out R-squared results for each model. 
+
+Linear_Regression <- function(dataset, x, y){
+  model_construction <- lm(dataset[[y]] ~ dataset[[x]], data = dataset)
+
+  #linear regression model 
+  model_graph <- ggplot(dataset, aes_string(x, y)) +
+    geom_point()+
+    geom_smooth(method = "lm") +
+    geom_smooth(se = FALSE, color = "red")+
+    theme_bw()
+  print (model_graph)
+  
+  
+  #Residuals vs fitted point graph
+  resi_plot <- ggplot(model_construction, aes(x = .fitted, y = .resid)) +
+    geom_point() +
+    geom_hline(yintercept = 0) +
+    labs(title='Residual (y)vs. Fitted Values(x) Plot', x=y, y=x)+
+    geom_smooth(se = FALSE) +
+    theme_bw()
+  print (resi_plot)
+  
+  
+  # Create Q-Q plot from residuals, to evaluate the assumption of ERRORS having a NORMAL DISTRIBUTION
+  qq_plot_res <- ggplot(model_construction, aes(sample = .resid)) +
+    stat_qq() + stat_qq_line()+
+    theme(aspect.ratio = 1)+
+    xlab("Theoretical Quantiles") +
+    ylab("Sample Quantiles") +
+    ggtitle("Normal Q-Q Plot of Residuals") +
+    theme_bw()
+  print(qq_plot_res)
+  
+  #Otra forma de identificar las observaciones que puedan ser outliers
+  plot(x = model_construction$fitted.values, y = abs(rstudent(model_construction)),
+main = "Absolute studentized residuals vs predicted values", pch = 20, col = "grey30")
+abline(h = 3, col = "red")
+
+  #'''model_residuals <- resid(model_construction)
+  #plot(model_residuals,
+  #ylab=y, xlab=x, main="Residuals Plot") 
+  #abline(0, 0)'''
+  
+  model_predicts <- predict(model_construction)
+  model_predicts <- residuals(model_construction)
+  
+  summary(model_construction)
+  RSE_val <- signif(sigma(model_construction), digits = 4)
+  Rsq_val <- signif(summary(model_construction)$r.squared, digits = 4)
+  
+RSS <- deviance(model_construction)
+  
+  print(paste('Model fit measurement for',x, ' is  R^2 = ',Rsq_val, 'and RSE=', RSE_val, 'with an RSS =',RSS))
+
+}
+
+ 
+Linear_Regression(data_taninos, "Abs280", "TT_TPI")
+Linear_Regression(data_taninos, "Abs340", "TT_TPI")
+Linear_Regression(data_taninos, "Abs420", "TT_TPI")
+Linear_Regression(data_taninos, "Abs520", "TT_TPI")
+Linear_Regression(data_taninos, "Abs620", "TT_TPI")
+Linear_Regression(data_taninos, "Antocianins", "TT_TPI")
+Linear_Regression(data_taninos, "Catechins", "TT_TPI")
+Linear_Regression(data_taninos, "Polyphenols", "TT_TPI")
+Linear_Regression(data_taninos, "Color", "TT_TPI")
+
+
+
+```
+
+The linear regression between **Polyphenols and TT-TPI** has a the best model fit scores, the values are:  
+**R^2 =  0.933 and RSE= 71.11**.  \
+This means, 93.5% of the variation is explained by TT-TPI. \
+\
+The Equation generated is: **TT-TPI = 1.07377xPolyphenols** \
+
+
+## Multiple Linear Regression
+\
+
+#### Multiple linear regression using **TT-TPI** as dependat variable
+
+```{r include=FALSE}
+#Best predictors selection using AIC method
+MLT_TT_TPI <- lm(TT_TPI ~ Abs420 +Abs620 +Antocianins +Catechins + Polyphenols + Color , data = data_taninos)
+summary(MLT_TT_TPI)
+
+#Best predictors selection using 
+step(object = MLT_TT_TPI, direction = "both", trace = 1)
+
+MLT_TT_TPI1 <- lm(TT_TPI ~ Abs620 + Polyphenols , data = data_taninos)
+summary(MLT_TT_TPI1)
+
+#Linear regression compared, resid vs fit
+
+plot4 <- ggplot(data = data_taninos, aes(Abs620, MLT_TT_TPI1$residuals)) + geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) + theme_bw()
+
+
+plot7 <- ggplot(data = data_taninos, aes(Polyphenols, MLT_TT_TPI1$residuals)) + geom_point() + geom_smooth(color = "firebrick") + geom_hline(yintercept = 0) + theme_bw()
+
+print(plot4)
+print(plot7)
+
+##QQ plot de residuals
+qqnorm(MLT_TT_TPI1$residuals)
+qqline(MLT_TT_TPI1$residuals)
+
+## Normalidad SW
+shapiro.test(MLT_TT_TPI1$residuals)
+
+## Residuals distribution
+MLR_resid <- ggplot(data = data_taninos, aes(MLT_TT_TPI1$fitted.values, MLT_TT_TPI1$residuals)) + geom_point() + geom_smooth(color = "firebrick", se = FALSE) + geom_hline(yintercept = 0) + theme_bw()
+print(MLR_resid)
+
+#Variance Inflation Factor (VIF): must be less than 5
+vif(MLT_TT_TPI1)
+
+#Autocorrelación
+dwt(MLT_TT_TPI1, alternative = "two.sided")
+
+##Atipic or influential points identification
+plot(x = MLT_TT_TPI1$fitted.values, y = abs(rstudent(MLT_TT_TPI1)),
+main = "Absolute studentized residuals vs predicted values", pch = 20, col = "grey30")
+abline(h = 3, col = "red")
+
+```
+
+
+\
+```{r include=FALSE}
+#Manual Forward selection of best variables
+
+my_MLR <- lm(TT_TPI ~ Polyphenols + Abs620 , data = data_taninos)
+summary(my_MLR)
+deviance(my_MLR)
+vif(my_MLR)
+
+my_MLR <- lm(TT_TPI ~ Polyphenols + Abs620 + Abs420, data = data_taninos)
+summary(my_MLR)
+deviance(my_MLR)
+
+my_MLR <- lm(TT_TPI ~ Polyphenols + Abs620 + Antocianins , data = data_taninos)
+summary(my_MLR)
+deviance(my_MLR)
+
+my_MLR <- lm(TT_TPI ~ Polyphenols + Abs620 + Catechins , data = data_taninos)
+summary(my_MLR)
+deviance(my_MLR)
+
+
+
+```
+
+\
+
+The model that fits best to the data is given by the variables:  \
+**TT-IPT ~ Polyphenols + Abs620** \
+Residual standard error: 69.14\
+Multiple R-squared:  0.9417\
+The Equation generated is: **TT-IPT = 0.98801xPolyphenols + 108.13873xAbs620**
+
+
+\
+```{r warning=FALSE, include=FALSE}
+#Graph for the MLR generated
+z <- data_taninos$TT_TPI
+x <- data_taninos$Polyphenols
+y <- data_taninos$Abs620
+
+fit <- lm(z ~ x + y)
+
+# create a grid from the x and y values (min to max) and predict values for every point
+# this will become the regression plane
+grid.lines = 40
+x.pred <- seq(min(x), max(x), length.out = grid.lines)
+y.pred <- seq(min(y), max(y), length.out = grid.lines)
+xy <- expand.grid( x = x.pred, y = y.pred)
+z.pred <- matrix(predict(fit, newdata = xy), 
+                 nrow = grid.lines, ncol = grid.lines)
+
+# create the fitted points for droplines to the surface
+fitpoints <- predict(fit)
+
+# scatter plot with regression plane
+scatter3D(x, y, z, pch = 19, cex = 1,colvar = NULL, col="#EA3323", 
+          theta =18, phi = 30, bty= "b2",
+          xlab = "Polyphenols", ylab = "Abs620", zlab = "TT-TPI",  
+          surf = list(x = x.pred, y = y.pred, z = z.pred,  
+                      facets = TRUE, fit = fitpoints, col=ramp.col (col = c("dodgerblue3","seagreen2"), n = 300, alpha=0.6), border="#74526C"), main = "TT-TPI")
+
+```
+\
+```{r , include=FALSE}
+Poly_color <- lm(TT_TPI ~ Polyphenols + Abs620, data = data_taninos) 
+avPlots(Poly_color, main = "TT-TPI ~ Polyphenols + Abs620", pch =20, grid=F )
+
+```
+\
